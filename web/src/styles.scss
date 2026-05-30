@@ -1,0 +1,226 @@
+/* =========================================================================
+   how-generation-works · global design system
+   A "generative lab" aesthetic: near-black canvas, plasma accent gradient,
+   precise mono labels, glassy panels, fluid type. Built for Angular 21
+   zoneless + standalone components.
+   ========================================================================= */
+
+@use 'katex/dist/katex.min.css';
+@use 'highlight.js/styles/base16/material-darker.css';
+
+:root {
+  /* ---- palette ---------------------------------------------------------- */
+  --bg-0: #05060a;          /* page */
+  --bg-1: #0a0c13;          /* raised surface */
+  --bg-2: #11141d;          /* panels */
+  --bg-3: #181c28;          /* controls */
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.16);
+
+  --ink-0: #f4f6fb;         /* primary text */
+  --ink-1: #c0c6d6;         /* secondary */
+  --ink-2: #8a92a6;         /* muted */
+  --ink-3: #5b6276;         /* faint */
+
+  /* plasma accent (noise -> signal) */
+  --plasma-a: #7c5cff;      /* violet */
+  --plasma-b: #41d6ff;      /* cyan */
+  --plasma-c: #ff5c8a;      /* magenta */
+  --accent: var(--plasma-a);
+  --accent-soft: rgba(124, 92, 255, 0.16);
+
+  --good: #46e0a0;
+  --warn: #ffcf5c;
+
+  --grad-plasma: linear-gradient(110deg, var(--plasma-a) 0%, var(--plasma-b) 55%, var(--plasma-c) 110%);
+  --grad-plasma-soft: linear-gradient(110deg, rgba(124, 92, 255, 0.22), rgba(65, 214, 255, 0.18));
+
+  /* ---- type ------------------------------------------------------------- */
+  --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+
+  --step--1: clamp(0.78rem, 0.75rem + 0.15vw, 0.86rem);
+  --step-0: clamp(0.95rem, 0.9rem + 0.25vw, 1.05rem);
+  --step-1: clamp(1.15rem, 1.05rem + 0.5vw, 1.4rem);
+  --step-2: clamp(1.5rem, 1.3rem + 1vw, 2.1rem);
+  --step-3: clamp(2rem, 1.6rem + 2vw, 3.2rem);
+  --step-4: clamp(2.6rem, 1.9rem + 3.6vw, 5rem);
+
+  /* ---- structure -------------------------------------------------------- */
+  --radius: 16px;
+  --radius-sm: 10px;
+  --radius-lg: 26px;
+  --maxw: 1240px;
+  --rail: 264px;
+  --shadow-1: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 18px 50px -30px rgba(0, 0, 0, 0.9);
+  --shadow-glow: 0 0 0 1px rgba(124, 92, 255, 0.35), 0 24px 70px -34px rgba(124, 92, 255, 0.55);
+  --ease: cubic-bezier(0.4, 0.02, 0.1, 1);
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg-0);
+  color: var(--ink-1);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.65;
+  letter-spacing: 0.01em;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* layered field: dot grid + drifting plasma glows */
+  background-image:
+    radial-gradient(1100px 700px at 82% -8%, rgba(124, 92, 255, 0.14), transparent 60%),
+    radial-gradient(900px 620px at -6% 12%, rgba(65, 214, 255, 0.10), transparent 60%),
+    radial-gradient(1000px 800px at 50% 120%, rgba(255, 92, 138, 0.08), transparent 60%),
+    radial-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: auto, auto, auto, 26px 26px;
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+::selection { background: rgba(124, 92, 255, 0.32); color: #fff; }
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  color: var(--ink-0);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  margin: 0 0 0.5em;
+  text-wrap: balance;
+}
+
+p { margin: 0 0 1.1em; max-width: 70ch; }
+a { color: var(--plasma-b); text-decoration: none; transition: color 0.15s var(--ease); }
+a:hover { color: #fff; }
+
+code, kbd, samp { font-family: var(--font-mono); font-size: 0.9em; }
+
+:where(p, li) code:not(.hljs) {
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.08em 0.4em;
+  color: #d8def0;
+  font-size: 0.84em;
+}
+
+hr { border: 0; border-top: 1px solid var(--line); margin: 2.5rem 0; }
+
+/* ---- reusable atoms ----------------------------------------------------- */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+}
+.eyebrow::before {
+  content: '';
+  width: 26px;
+  height: 1px;
+  background: var(--grad-plasma);
+}
+
+.gradient-text {
+  background: var(--grad-plasma);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.panel {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0)), var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-1);
+}
+
+.tag {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  padding: 0.22em 0.6em;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  color: var(--ink-1);
+  background: var(--bg-3);
+  white-space: nowrap;
+}
+.tag--accent { border-color: rgba(124, 92, 255, 0.5); color: #cdbcff; background: var(--accent-soft); }
+
+.btn {
+  --b: var(--bg-3);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.7em 1.15em;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--b);
+  color: var(--ink-0);
+  cursor: pointer;
+  transition: transform 0.12s var(--ease), border-color 0.15s var(--ease), background 0.15s var(--ease);
+}
+.btn:hover { transform: translateY(-1px); border-color: rgba(124, 92, 255, 0.6); }
+.btn:active { transform: translateY(0); }
+.btn--primary {
+  border: 0;
+  color: #0a0a12;
+  background: var(--grad-plasma);
+  font-weight: 600;
+}
+.btn--primary:hover { box-shadow: var(--shadow-glow); }
+
+/* form controls shared across interactive figures */
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--plasma-a), var(--plasma-b));
+  outline: none;
+  cursor: pointer;
+}
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--plasma-a);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+input[type='range']::-moz-range-thumb {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--plasma-a);
+}
+
+/* katex on dark */
+.katex { color: var(--ink-0); font-size: 1.04em; }
+.katex-display { margin: 1.2rem 0; overflow-x: auto; overflow-y: hidden; padding: 0.2rem 0; }
+
+/* highlight.js panel base (code-ref overrides container chrome) */
+pre code.hljs { background: transparent; padding: 0; }
+
+/* scrollbars */
+* { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 999px; border: 2px solid transparent; background-clip: content-box; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+}

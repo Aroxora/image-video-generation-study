@@ -1,0 +1,15 @@
+# gen·lab — minimal dependencies for the build-it-yourself PyTorch companion.
+# Target: Python 3.10+ and torch 2.x (developed against torch 2.11). CPU works.
+#
+# Install with:  pip install -r pytorch/requirements.txt
+
+torch>=2.0          # the whole repo is PyTorch; CPU build is fine (no CUDA assumed)
+numpy>=1.23         # toy 2-D data generation, misc array work
+matplotlib>=3.6     # headless (Agg) plotting for sample grids and the toy scatter PNG
+tqdm>=4.64          # optional progress bars during sampling (degrades gracefully if absent)
+pillow>=9.0         # image I/O helper (PIL); used for optional image loading/saving
+
+# torchvision is OPTIONAL: it is only needed for `--dataset mnist` in pytorch.train.
+# The default `--dataset shapes` is generated synthetically and needs nothing extra.
+# Install it yourself if you want MNIST:
+#   pip install torchvision

@@ -1,0 +1,25 @@
+# ---- python / pytorch ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# training artifacts & sample outputs
+runs/
+checkpoints/
+*.pt
+*.ckpt
+*.png
+!web/**/*.png
+!web/public/**
+
+# ---- node / angular (web/ has its own .gitignore too) ----
+node_modules/
+web/dist/
+web/.angular/
+.DS_Store
+
+# ---- workflow scratch ----
+*.workflow.js

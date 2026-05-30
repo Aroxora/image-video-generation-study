@@ -1,0 +1,161 @@
+<!-- ===================== HERO ===================== -->
+<header class="hero">
+  <canvas #field class="hero__field" aria-hidden="true"></canvas>
+  <div class="hero__veil"></div>
+
+  <div class="hero__inner">
+    <span class="eyebrow">interactive · diffusion &amp; autoregression · pytorch</span>
+    <h1 class="hero__title">
+      How a machine<br><span class="gradient-text">dreams a picture</span>
+    </h1>
+    <p class="hero__lede">
+      Modern image and video models don't paint left-to-right. They start from pure static and
+      <em>sculpt</em> it into an image — denoising the whole frame, or the whole clip, at once.
+      This is an interactive tour of how that works, paired with a small, runnable PyTorch repo
+      so you can build it yourself.
+    </p>
+
+    <div class="hero__cta">
+      <a class="btn btn--primary" routerLink="/diffusion">Start with diffusion →</a>
+      <a class="btn" routerLink="/playground">Live playground</a>
+      <a class="btn" [href]="repo.base" target="_blank" rel="noopener">Open the repo ↗</a>
+    </div>
+
+    <div class="hero__eq panel">
+      <span class="hero__eq-label">the reverse step, learned</span>
+      <app-math display
+        expr="x_{t-1} = \frac{1}{\sqrt{\alpha_t}}\Big(x_t - \frac{1-\alpha_t}{\sqrt{1-\bar\alpha_t}}\,\epsilon_\theta(x_t,t,c)\Big) + \sigma_t z" />
+    </div>
+  </div>
+</header>
+
+<!-- ===================== THE REFRAMING ===================== -->
+<section class="band">
+  <div class="callout panel">
+    <span class="tag tag--accent">the key idea</span>
+    <h2>The “next-frame prediction” intuition is backwards.</h2>
+    <p>
+      It's tempting to imagine a model generating frame 1, then predicting frame 2 from it, and so on.
+      For the high-quality systems — Sora, Veo, Kling, Runway, Stable Video Diffusion — that's mostly
+      <strong>not</strong> what happens. They generate the entire clip <em>at once</em> by denoising, so the
+      model sees all frames simultaneously while generating. That's exactly why motion stays coherent.
+    </p>
+    <p class="callout__foot">
+      True autoregressive next-frame prediction does exist (and is resurging for long / streaming video) —
+      it's just historically been weaker, because errors compound frame to frame. Two families, two mental models.
+    </p>
+  </div>
+</section>
+
+<!-- ===================== TWO FAMILIES ===================== -->
+<section class="band">
+  <div class="band__head">
+    <span class="eyebrow">two families</span>
+    <h2>Denoise the whole thing — or predict tokens in sequence</h2>
+  </div>
+
+  <div class="families">
+    <article class="fam panel">
+      <header class="fam__head">
+        <span class="fam__no">A</span>
+        <div>
+          <h3>Diffusion</h3>
+          <span class="fam__sub">denoises the whole clip at once</span>
+        </div>
+      </header>
+      <div class="fam__viz fam__viz--diffuse" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span><span></span>
+      </div>
+      <ul class="fam__list">
+        <li>Start from pure Gaussian noise; predict-and-subtract noise over many steps.</li>
+        <li>All frames are present every step → <strong>temporal coherence</strong>.</li>
+        <li>Text steers continuously via <strong>cross-attention</strong>, not by being generated.</li>
+        <li>The engine behind most of the impressive results you've seen.</li>
+      </ul>
+      <a class="fam__link" routerLink="/diffusion">Follow this path →</a>
+    </article>
+
+    <article class="fam panel">
+      <header class="fam__head">
+        <span class="fam__no">B</span>
+        <div>
+          <h3>Autoregressive</h3>
+          <span class="fam__sub">predicts tokens one at a time</span>
+        </div>
+      </header>
+      <div class="fam__viz fam__viz--seq" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span><span></span>
+      </div>
+      <ul class="fam__list">
+        <li>Tokenize video into discrete codes with a <strong>VQ-VAE</strong>.</li>
+        <li>A plain Transformer predicts the next token — exactly like an LLM.</li>
+        <li>Text and frame tokens <strong>truly interleave</strong> in one sequence.</li>
+        <li>Elegant and unified; closing the quality gap with hybrids.</li>
+      </ul>
+      <a class="fam__link" routerLink="/autoregressive">Follow this path →</a>
+    </article>
+  </div>
+</section>
+
+<!-- ===================== PIPELINE ===================== -->
+<section class="band">
+  <div class="band__head">
+    <span class="eyebrow">stable diffusion, end to end</span>
+    <h2>The pipeline at a glance</h2>
+    <p class="band__lede">
+      A prompt becomes embeddings; diffusion runs inside a small <em>latent</em> grid steered by those
+      embeddings; a decoder expands the result back to pixels. Each stage is a chapter — and a file in the repo.
+    </p>
+  </div>
+
+  <ol class="pipe">
+    <li class="pipe__node"><span class="pipe__k">prompt</span><span class="pipe__v">“a fox in snow”</span></li>
+    <li class="pipe__arrow">→</li>
+    <li class="pipe__node"><a routerLink="/text"><span class="pipe__k">text encoder</span><span class="pipe__v">CLIP / T5 tokens</span></a></li>
+    <li class="pipe__arrow">→</li>
+    <li class="pipe__node pipe__node--loop">
+      <a routerLink="/denoiser">
+        <span class="pipe__k">denoiser ×T</span>
+        <span class="pipe__v">U-Net / DiT in latent space, cross-attending the prompt</span>
+      </a>
+      <span class="pipe__loop">↻ denoise</span>
+    </li>
+    <li class="pipe__arrow">→</li>
+    <li class="pipe__node"><a routerLink="/latent"><span class="pipe__k">VAE decode</span><span class="pipe__v">latent → pixels</span></a></li>
+    <li class="pipe__arrow">→</li>
+    <li class="pipe__node pipe__node--out"><span class="pipe__k">image</span><span class="pipe__v">512×512</span></li>
+  </ol>
+</section>
+
+<!-- ===================== CHAPTER INDEX ===================== -->
+<section class="band">
+  <div class="band__head">
+    <span class="eyebrow">the tour</span>
+    <h2>Nine chapters, each wired to its code</h2>
+  </div>
+
+  <div class="grid">
+    @for (c of chapters; track c.slug) {
+      <a class="card" [routerLink]="'/' + c.slug">
+        <div class="card__top">
+          <span class="card__no">{{ c.no }}</span>
+          <span class="card__fam">{{ c.family }}</span>
+        </div>
+        <h3 class="card__title">{{ c.title }}</h3>
+        <p class="card__blurb">{{ c.blurb }}</p>
+        <div class="card__files">
+          @for (f of c.code; track f) { <span class="card__file">{{ f.split('/').slice(-1)[0] }}</span> }
+        </div>
+        <span class="card__go">open →</span>
+      </a>
+    }
+  </div>
+</section>
+
+<footer class="foot">
+  <div>
+    <span class="brand__name">gen·lab</span>
+    <p>An interactive explainer + a runnable PyTorch implementation. Built with Angular 21 on Firebase Hosting.</p>
+  </div>
+  <a class="btn" [href]="repo.base" target="_blank" rel="noopener">github.com/{{ repo.owner }}/{{ repo.name }} ↗</a>
+</footer>
