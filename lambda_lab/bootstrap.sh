@@ -13,22 +13,27 @@ set -euo pipefail
 
 STACK="${1:-diffusers}"
 ARCH="$(uname -m)"                 # aarch64 (GH200) | x86_64
-VENV="$HOME/venv"
 KIT="$HOME/lambda_lab"
 
 echo "== lambda_lab bootstrap: stack=$STACK arch=$ARCH =="
 
-# Put the HuggingFace + pip caches on the largest writable mount so a persistent
-# filesystem (mounted under /home/ubuntu/<fs> or /lambda) caches weights forever.
+# Find a persistent filesystem mount (survives teardown), if one is attached, and
+# keep the venv + HuggingFace cache there so scale-to-zero restarts skip the
+# multi-GB reinstall/download. Falls back to the ephemeral instance SSD.
+FS=""
 for cand in /home/ubuntu/*/ /lambda/*/; do
-  if [ -d "$cand" ] && [ -w "$cand" ]; then
-    export HF_HOME="${cand%/}/hf-cache"
-    break
-  fi
+  [ -d "$cand" ] && [ -w "$cand" ] && [ "$cand" != "$HOME/" ] && { FS="${cand%/}"; break; }
 done
-export HF_HOME="${HF_HOME:-$HOME/.cache/huggingface}"
+if [ -n "$FS" ]; then
+  VENV="$FS/venv"; export HF_HOME="$FS/hf-cache"
+  ln -sfn "$VENV" "$HOME/venv"      # so $HOME/venv/bin/python always resolves
+  echo "persistent fs: $FS — venv + weights cached here across restarts"
+else
+  VENV="$HOME/venv"; export HF_HOME="$HOME/.cache/huggingface"
+  echo "no persistent fs — using ephemeral SSD (cold starts re-download weights)"
+fi
 mkdir -p "$HF_HOME"
-echo "export HF_HOME=$HF_HOME" >> "$HOME/.bashrc"
+grep -q "export HF_HOME=$HF_HOME" "$HOME/.bashrc" 2>/dev/null || echo "export HF_HOME=$HF_HOME" >> "$HOME/.bashrc"
 echo "HF cache -> $HF_HOME"
 
 sudo apt-get update -y -qq || true

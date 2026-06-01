@@ -132,6 +132,19 @@ def cmd_teardown(args):
     S.teardown(ctx)
 
 
+def cmd_autoscale(args):
+    """Scale-to-zero controller: GPU off until a request arrives, idle-stop after."""
+    from .autoscale import serve_autoscaler
+    serve_autoscaler(
+        idle_min=args.idle,
+        budget=args.budget if args.budget is not None else 10.0,
+        local_port=args.port,
+        instance_type=args.instance_type or "gpu_1x_a10",
+        filesystem=args.filesystem,
+        run_id=args.run_id or "sdxl-live",
+    )
+
+
 def cmd_plan(args):
     steps, params = build(args.pipeline, _overrides(args))
     it = params["instance_type"]
@@ -195,6 +208,7 @@ def main(argv=None):
     sp = sub.add_parser("status", help="show a run"); sp.add_argument("run_id", nargs="?"); sp.set_defaults(fn=cmd_status)
     sp = sub.add_parser("list", help="list runs"); sp.set_defaults(fn=cmd_list)
     sp = sub.add_parser("teardown", help="terminate a run's instance"); sp.add_argument("run_id"); sp.set_defaults(fn=cmd_teardown)
+    sp = sub.add_parser("autoscale", help="scale-to-zero proxy: launch on first request, idle-stop"); sp.add_argument("--idle", type=float, default=15, help="minutes idle before auto-teardown"); sp.add_argument("--port", type=int, default=8000, help="local port the Studio points at"); add_common(sp); sp.set_defaults(fn=cmd_autoscale)
     sp = sub.add_parser("plan", help="dry run (no API key)"); sp.add_argument("pipeline", choices=sorted(PIPELINES)); add_common(sp); sp.set_defaults(fn=cmd_plan)
     sp = sub.add_parser("costs", help="price table + fit matrix"); sp.set_defaults(fn=cmd_costs)
     sp = sub.add_parser("types", help="live instance types"); sp.set_defaults(fn=cmd_types)

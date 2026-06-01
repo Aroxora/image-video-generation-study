@@ -102,20 +102,21 @@ import { FirebaseService } from '../../core/firebase.service';
   </section>
 
   <section class="panel howto">
-    <h2>Start your own box (≈ $1.29/hr, $10 cap)</h2>
-    <pre class="code"><code>export LAMBDA_API_KEY=...            # cloud.lambda.ai/api-keys
-python -m lambda_lab.run start serve-sdxl --budget 10
+    <h2>Run the GPU only when you use it (dynamic cost)</h2>
+    <pre class="code"><code>export LAMBDA_API_KEY=...              # cloud.lambda.ai/api-keys
 
-# it prints a tunnel command — run it in another terminal:
-ssh -L 8000:localhost:8000 ubuntu@&lt;instance-ip&gt;
-
-# then this page can reach http://127.0.0.1:8000 . When done:
-python -m lambda_lab.run teardown sdxl-&lt;id&gt;</code></pre>
+# Scale-to-zero: GPU OFF until you hit generate, auto-stops when idle.
+python -m lambda_lab.run autoscale --idle 15 --budget 10
+# Leave it running; it serves this page on http://127.0.0.1:8000 .
+# First generate cold-starts the box (~2-5 min); after 15 min idle it terminates.</code></pre>
     <p class="note">
-      The endpoint binds to localhost on the box and is reached only through your tunnel — it is never
-      exposed publicly. A serving GPU bills until you tear it down, so kill it when you're finished.
-      If the browser blocks the call, it's usually the tunnel being down or a mixed-content/CORS block
-      (the server sends permissive CORS headers; make sure the tunnel is up).
+      The controller is a free local process — only the GPU costs money, and only while you're
+      actually generating (plus a short idle grace), instead of a 24/7 burn. Add
+      <code>--filesystem NAME</code> (create one once at cloud.lambda.ai/file-systems) to cache
+      weights + the venv so cold starts skip the multi-GB download. Prefer an always-on box?
+      <code>run start serve-sdxl</code> + <code>ssh -L 8000:localhost:8000 ubuntu@&lt;ip&gt;</code>, then
+      <code>run teardown sdxl-live</code> when done. Either way the endpoint is localhost-only —
+      never exposed publicly.
     </p>
   </section>
 </div>
@@ -221,11 +222,19 @@ export class Studio {
       const r = await fetch(this.base() + '/health');
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const j = await r.json();
-      this.status.set(j.ready ? 'ok' : 'bad');
-      this.statusMsg.set(j.ready ? `connected · ${j.model} on ${j.device}` : 'reachable — model still loading, retry shortly');
+      if (j.ready) {
+        this.status.set('ok');
+        this.statusMsg.set(`connected · ${j.model}${j.device ? ' on ' + j.device : ''}`);
+      } else if (j.status === 'down' || j.status === 'warming') {
+        this.status.set('idle');
+        this.statusMsg.set(j.message || 'GPU is off — it starts on your first generate.');
+      } else {
+        this.status.set('bad');
+        this.statusMsg.set('reachable — model still loading, retry shortly');
+      }
     } catch {
       this.status.set('bad');
-      this.statusMsg.set('cannot reach endpoint — is your box up and the SSH tunnel open?');
+      this.statusMsg.set('cannot reach endpoint — is the autoscale controller (or tunnel) running?');
     }
   }
 
@@ -233,32 +242,46 @@ export class Studio {
     const p = this.prompt().trim();
     if (!p) { this.status.set('bad'); this.statusMsg.set('enter a prompt first'); return; }
     this.loading.set(true);
-    this.statusMsg.set('generating…');
+    this.statusMsg.set(this.initImage() ? 'transforming…' : 'generating…');
     this.fb.event('interact', { section: 'studio', control: 'generate' });
+    const payload = JSON.stringify({
+      prompt: p,
+      negative: this.negative() || undefined,
+      steps: this.steps(),
+      guidance: this.guidance(),
+      width: this.size(),
+      height: this.size(),
+      seed: this.seed() === '' ? undefined : Number(this.seed()),
+      init_image: this.initImage() || undefined,
+      strength: this.strength(),
+    });
     try {
-      const r = await fetch(this.base() + '/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: p,
-          negative: this.negative() || undefined,
-          steps: this.steps(),
-          guidance: this.guidance(),
-          width: this.size(),
-          height: this.size(),
-          seed: this.seed() === '' ? undefined : Number(this.seed()),
-          init_image: this.initImage() || undefined,
-          strength: this.strength(),
-        }),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
-      this.image.set(j.image);
-      this.status.set('ok');
-      this.statusMsg.set('done');
+      // The autoscale controller may answer 503 "warming" while it cold-starts the
+      // GPU; keep the prompt and auto-retry until it's up (or we give up).
+      for (let attempt = 0; attempt <= 30; attempt++) {
+        const r = await fetch(this.base() + '/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payload,
+        });
+        const j = await r.json().catch(() => ({}));
+        if (r.status === 503 && j.status === 'warming') {
+          if (attempt === 30) throw new Error('GPU did not come up in time — try again');
+          const wait = Math.max(5, Number(j.retry_in_s) || 15);
+          this.status.set('idle');
+          this.statusMsg.set(`${j.message || 'GPU starting…'} · auto-retry ${attempt + 1}`);
+          await new Promise((res) => setTimeout(res, wait * 1000));
+          continue;
+        }
+        if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
+        this.image.set(j.image);
+        this.status.set('ok');
+        this.statusMsg.set('done' + (j.mode ? ` · ${j.mode}` : ''));
+        break;
+      }
     } catch (e) {
       this.status.set('bad');
-      this.statusMsg.set('failed: ' + ((e as Error)?.message || 'connection error — check the tunnel'));
+      this.statusMsg.set('failed: ' + ((e as Error)?.message || 'connection error — is the controller/tunnel running?'));
     } finally {
       this.loading.set(false);
     }
