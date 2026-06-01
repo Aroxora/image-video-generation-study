@@ -19,10 +19,10 @@ import { FirebaseService } from '../../core/firebase.service';
   template: `
 <div class="studio">
   <header class="s-head">
-    <a class="brandlink" routerLink="/">← gen·lab</a>
+    <a class="brandlink" routerLink="/">← Erosolar</a>
     <div>
-      <h1>Image Studio</h1>
-      <p class="sub">A front-end for an SDXL endpoint <em>you</em> run. Nothing is generated on this site.</p>
+      <h1>Erosolar Image Studio</h1>
+      <p class="sub">Self-hosted SDXL — text-to-image and image-to-image. A front-end for an endpoint <em>you</em> run; nothing is generated on this site.</p>
     </div>
   </header>
 
@@ -49,6 +49,21 @@ import { FirebaseService } from '../../core/firebase.service';
       <label class="lbl">negative prompt <span class="muted">(optional)</span></label>
       <input class="in" type="text" [value]="negative()" (input)="onNeg($event)" placeholder="blurry, low quality, watermark" />
 
+      <label class="lbl">init image <span class="muted">(optional — upload a picture to transform it)</span></label>
+      <div class="row">
+        <input class="in in--grow" type="file" accept="image/*" (change)="onFile($event)" />
+        @if (initImage()) { <button type="button" class="btn" (click)="clearImage()">remove</button> }
+      </div>
+      @if (initImage()) {
+        <div class="initwrap">
+          <img class="initprev" [src]="initImage()" alt="upload preview" />
+          <div class="sl initstr">
+            <span class="lbl">change strength <b>{{ strength().toFixed(2) }}</b> <span class="muted">(higher = less like the upload)</span></span>
+            <input type="range" min="0.2" max="0.95" step="0.05" [value]="strength()" (input)="onStrength($event)" />
+          </div>
+        </div>
+      }
+
       <div class="sliders">
         <div class="sl">
           <span class="lbl">steps <b>{{ steps() }}</b></span>
@@ -69,7 +84,7 @@ import { FirebaseService } from '../../core/firebase.service';
       </div>
 
       <button class="btn btn--primary gen" (click)="generate()" [disabled]="loading()">
-        {{ loading() ? 'generating…' : 'generate ▸' }}
+        {{ loading() ? (initImage() ? 'transforming…' : 'generating…') : (initImage() ? 'transform ▸' : 'generate ▸') }}
       </button>
     </div>
 
@@ -137,6 +152,10 @@ python -m lambda_lab.run teardown sdxl-&lt;id&gt;</code></pre>
     .sliders { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem 1rem; margin: 1rem 0; }
     .sl { display: flex; flex-direction: column; gap: 0.3rem; }
     input[type=range] { width: 100%; accent-color: var(--plasma-a); }
+    input[type=file].in { padding: 0.4rem 0.5rem; cursor: pointer; font-family: var(--font-mono); font-size: 0.78rem; }
+    .initwrap { display: flex; gap: 0.8rem; align-items: flex-start; margin: 0.1rem 0 0.3rem; }
+    .initprev { width: 92px; height: 92px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line-strong); flex: none; }
+    .initstr { flex: 1; min-width: 0; }
     .btn { font-family: var(--font-display); font-size: 0.85rem; padding: 0.5em 1em; border-radius: var(--radius-sm); border: 1px solid var(--line-strong); background: var(--bg-2); color: var(--ink-1); cursor: pointer; transition: border-color .15s, color .15s; }
     .btn:hover:not(:disabled) { color: #fff; border-color: rgba(124,92,255,0.6); }
     .btn:disabled { opacity: 0.5; cursor: progress; }
@@ -168,6 +187,9 @@ export class Studio {
   readonly size = signal(1024);
   readonly seed = signal<string>('');
 
+  readonly initImage = signal<string | null>(null); // uploaded image (data URL) for img2img
+  readonly strength = signal(0.6);
+
   readonly loading = signal(false);
   readonly status = signal<'idle' | 'ok' | 'bad'>('idle');
   readonly statusMsg = signal('');
@@ -182,6 +204,15 @@ export class Studio {
   onGuidance(e: Event) { this.guidance.set(Number((e.target as HTMLInputElement).value)); }
   onSize(e: Event) { this.size.set(Number((e.target as HTMLInputElement).value)); }
   onSeed(e: Event) { this.seed.set((e.target as HTMLInputElement).value.replace(/[^0-9]/g, '')); }
+  onStrength(e: Event) { this.strength.set(Number((e.target as HTMLInputElement).value)); }
+  clearImage() { this.initImage.set(null); }
+  onFile(e: Event) {
+    const f = (e.target as HTMLInputElement).files?.[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => this.initImage.set(reader.result as string);
+    reader.readAsDataURL(f);
+  }
 
   async testConnection(): Promise<void> {
     this.status.set('idle');
@@ -216,6 +247,8 @@ export class Studio {
           width: this.size(),
           height: this.size(),
           seed: this.seed() === '' ? undefined : Number(this.seed()),
+          init_image: this.initImage() || undefined,
+          strength: this.strength(),
         }),
       });
       const j = await r.json().catch(() => ({}));

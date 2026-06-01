@@ -2,19 +2,22 @@
 """
 Minimal SDXL inference HTTP server for the gen·lab Studio web client.
 
-  POST /generate  {prompt, negative?, steps?, width?, height?, seed?, guidance?}
-                  -> {image: "data:image/png;base64,...", model, seed}
-  GET  /health    -> {ready, model, device}
+  POST /generate  {prompt, negative?, steps?, width?, height?, seed?, guidance?,
+                   init_image?, strength?}
+                  -> {image: "data:image/png;base64,...", model, seed, mode}
+  GET  /health    -> {ready, model, device, img2img}
 
-Binds to 127.0.0.1 only, so it is reachable solely through the SSH tunnel the
-orchestrator prints — it is NEVER exposed to the public internet. CORS (incl.
-Chrome's Private-Network-Access preflight) is enabled so the static web app can
-call it across the tunnel. Stdlib only besides torch/diffusers.
+If `init_image` (a data-URL or bare base64 PNG/JPEG) is present it runs
+image-to-image: the upload is the starting point and `strength` (0..1) sets how
+far the prompt is allowed to push it (higher = more change). Otherwise it runs
+text-to-image. The img2img pipeline is built with `from_pipe`, so it SHARES the
+text-to-image weights — no extra VRAM, no second download.
 
-SDXL ships no prompt classifier; the optional SD1.x output checker (which
-false-positives constantly) is disabled if present. You are responsible for
-lawful use — no sexual content involving minors, no non-consensual imagery of
-real people.
+Binds to 127.0.0.1 only (reached via the SSH tunnel; never public). CORS + the
+Chrome Private-Network-Access header are sent so the static web app can call it.
+SDXL ships no prompt classifier; the SD1.x output checker is disabled if present.
+You are responsible for lawful use — no sexual content involving minors, no
+non-consensual imagery of real people.
 """
 
 from __future__ import annotations
@@ -26,12 +29,18 @@ import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-STATE = {"pipe": None, "model": None, "ready": False, "lock": threading.Lock()}
+STATE = {
+    "pipe": None,        # text-to-image
+    "img2img": None,     # image-to-image (shares pipe's weights)
+    "model": None,
+    "ready": False,
+    "lock": threading.Lock(),
+}
 
 
 def load(model: str) -> None:
     import torch
-    from diffusers import AutoPipelineForText2Image
+    from diffusers import AutoPipelineForText2Image, AutoPipelineForImage2Image
 
     dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
     pipe = AutoPipelineForText2Image.from_pretrained(model, torch_dtype=dtype)
@@ -43,11 +52,27 @@ def load(model: str) -> None:
             pass
     else:
         pipe = pipe.to("cpu")
-    # SD1.x carries a safety_checker that mostly false-positives; SDXL has none.
     if hasattr(pipe, "safety_checker"):
         pipe.safety_checker = None
-    STATE.update(pipe=pipe, model=model, ready=True)
-    print(f"model ready: {model}", flush=True)
+    # Reuse the SAME weights for image-to-image — no extra VRAM / download.
+    img2img = AutoPipelineForImage2Image.from_pipe(pipe)
+    if hasattr(img2img, "safety_checker"):
+        img2img.safety_checker = None
+    STATE.update(pipe=pipe, img2img=img2img, model=model, ready=True)
+    print(f"model ready: {model} (text2img + img2img)", flush=True)
+
+
+def _decode_image(data_url: str):
+    """data-URL or bare base64 -> RGB PIL image."""
+    from PIL import Image
+
+    payload = data_url.split(",", 1)[1] if "," in data_url else data_url
+    raw = base64.b64decode(payload)
+    return Image.open(io.BytesIO(raw)).convert("RGB")
+
+
+def _round8(n: int) -> int:
+    return max(256, (int(n) // 8) * 8)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -55,7 +80,6 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        # let an https page reach this localhost endpoint (Chrome PNA preflight)
         self.send_header("Access-Control-Allow-Private-Network", "true")
 
     def _json(self, code: int, obj: dict) -> None:
@@ -75,8 +99,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         if self.path.startswith("/health"):
             import torch
-            self._json(200, {"ready": STATE["ready"], "model": STATE["model"],
-                             "device": "cuda" if torch.cuda.is_available() else "cpu"})
+            self._json(200, {
+                "ready": STATE["ready"],
+                "model": STATE["model"],
+                "device": "cuda" if torch.cuda.is_available() else "cpu",
+                "img2img": STATE["img2img"] is not None,
+            })
         else:
             self._json(404, {"error": "not found"})
 
@@ -104,28 +132,53 @@ class Handler(BaseHTTPRequestHandler):
         gen = None
         if seed not in (None, "", -1, "-1"):
             gen = torch.Generator(device=device).manual_seed(int(seed))
-        kwargs = dict(
-            prompt=prompt,
-            negative_prompt=(req.get("negative") or None),
-            num_inference_steps=int(req.get("steps", 30)),
-            guidance_scale=float(req.get("guidance", 6.0)),
-            width=int(req.get("width", 1024)),
-            height=int(req.get("height", 1024)),
-        )
-        if gen is not None:
-            kwargs["generator"] = gen
+
+        width = _round8(req.get("width", 1024))
+        height = _round8(req.get("height", 1024))
+        steps = int(req.get("steps", 30))
+        guidance = float(req.get("guidance", 6.0))
+        negative = req.get("negative") or None
+        init_url = req.get("init_image")
+
         try:
             with STATE["lock"]:  # one GPU -> serialize requests
-                image = STATE["pipe"](**kwargs).images[0]
+                if init_url:
+                    # ---- image-to-image: transform the upload ----
+                    init = _decode_image(init_url).resize((width, height))
+                    strength = float(req.get("strength", 0.6))
+                    strength = min(0.99, max(0.05, strength))
+                    image = STATE["img2img"](
+                        prompt=prompt,
+                        image=init,
+                        strength=strength,
+                        negative_prompt=negative,
+                        num_inference_steps=steps,
+                        guidance_scale=guidance,
+                        generator=gen,
+                    ).images[0]
+                    mode = "img2img"
+                else:
+                    # ---- text-to-image ----
+                    image = STATE["pipe"](
+                        prompt=prompt,
+                        negative_prompt=negative,
+                        num_inference_steps=steps,
+                        guidance_scale=guidance,
+                        width=width,
+                        height=height,
+                        generator=gen,
+                    ).images[0]
+                    mode = "text2img"
         except Exception as e:  # noqa: BLE001
             self._json(500, {"error": f"generation failed: {e}"})
             return
+
         buf = io.BytesIO()
         image.save(buf, format="PNG")
         data = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
-        self._json(200, {"image": data, "model": STATE["model"], "seed": seed})
+        self._json(200, {"image": data, "model": STATE["model"], "seed": seed, "mode": mode})
 
-    def log_message(self, *args) -> None:  # quiet
+    def log_message(self, *args) -> None:
         return
 
 
