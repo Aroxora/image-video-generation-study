@@ -71,9 +71,12 @@ class Remote:
         should check `job_status` first and skip if already running/finished.
         """
         d = job_dir
+        # NOTE: mkdir/rm must be their OWN foreground commands (";", not "&&"):
+        # chaining them with "&&" into the backgrounded job races the `echo $! >
+        # pid` write against the directory's creation.
         script = (
-            f"mkdir -p {d} && "
-            f"rm -f {d}/{tag}.done && "
+            f"mkdir -p {d}; "
+            f"rm -f {d}/{tag}.done; "
             f"setsid bash -lc {shlex.quote(command + f'; echo $? > {d}/{tag}.done')} "
             f"> {d}/{tag}.log 2>&1 < /dev/null & "
             f"echo $! > {d}/{tag}.pid"
