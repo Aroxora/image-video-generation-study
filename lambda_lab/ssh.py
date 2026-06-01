@@ -130,7 +130,9 @@ def rsync(src: str, dst: str, *, key_path: str | None = None, up: bool, ip: str,
     remote = f"{user}@{ip}:"
     a = src if up else f"{remote}{src}"
     b = f"{remote}{dst}" if up else dst
-    cmd = ["rsync", "-az", "--info=progress2", "-e", ssh_cmd]
+    # plain -az; avoid GNU-only flags (--info=progress2) so the BSD rsync that
+    # ships on macOS works too.
+    cmd = ["rsync", "-az", "-e", ssh_cmd]
     for ex in excludes:
         cmd += ["--exclude", ex]
     cmd += [a, b]

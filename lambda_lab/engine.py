@@ -206,7 +206,6 @@ class Engine:
         st.status = "running"
         st.save()
         ctx = Context(self, st)
-        teardown_step = next((s for s in steps if s.name == "teardown"), None)
 
         for step in steps:
             rec = st.steps.setdefault(step.name, StepRecord(step.name))
@@ -218,9 +217,16 @@ class Engine:
             if not ok:
                 st.status = "failed"
                 st.save()
-                if step.teardown_on_fail and teardown_step and step.name != "teardown":
+                # Terminate on a fatal failure of a guarded step — call teardown
+                # directly so this works even for pipelines (e.g. serve-*) that
+                # have no explicit teardown step in their list.
+                if step.teardown_on_fail and step.name != "teardown":
                     st.log("running teardown after fatal failure …")
-                    self._run_step(ctx, teardown_step, st.steps.setdefault("teardown", StepRecord("teardown")))
+                    from .steps import teardown as _teardown
+                    try:
+                        _teardown(ctx)
+                    except Exception as e:  # noqa: BLE001
+                        st.log(f"teardown error: {e}")
                 return st
 
         st.status = "done"
