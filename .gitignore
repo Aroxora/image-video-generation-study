@@ -21,5 +21,13 @@ web/dist/
 web/.angular/
 .DS_Store
 
+# ---- firebase deploy cache ----
+.firebase/
+
 # ---- workflow scratch ----
 *.workflow.js
+
+# ---- lambda_lab orchestrator: run state, pulled outputs, local datasets ----
+.lambda_lab/
+outputs/
+/dataset/

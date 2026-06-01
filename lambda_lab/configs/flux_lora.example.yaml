@@ -1,0 +1,57 @@
+# ai-toolkit (Ostris) — FLUX.1-dev LoRA. Uploaded to the box as ~/lambda_lab/run.yaml.
+# `quantize: true` runs the base in ~8-bit so the whole train fits in ~20-24 GB — i.e.
+# it runs on the A10 (24 GB, $1.29/hr) and comfortably on the A100 40 GB ($1.99/hr).
+# NOTE: FLUX.1-dev is gated + NON-COMMERCIAL. Accept its license on Hugging Face and
+# `huggingface-cli login` on the box first. For commercial work use an Apache-2.0 base.
+---
+job: extension
+config:
+  name: flux_lora
+  process:
+    - type: sd_trainer
+      training_folder: /home/ubuntu/lambda_lab/output   # rsynced back before teardown
+      device: cuda:0
+      trigger_word: p3rs0n                               # your subject token
+      network:
+        type: lora
+        linear: 16          # rank — 16 is a good default; 8 trains faster/cheaper
+        linear_alpha: 16
+      save:
+        dtype: float16
+        save_every: 250
+        max_step_saves_to_keep: 4
+      datasets:
+        - folder_path: /home/ubuntu/lambda_lab/dataset   # 15-40 images + .txt captions
+          caption_ext: txt
+          caption_dropout_rate: 0.05
+          cache_latents_to_disk: true                    # cache once -> cheaper steps
+          resolution: [512, 768, 1024]                   # bucketed multi-res
+      train:
+        batch_size: 1
+        steps: 2000                                      # ~20-35 min on an H100/A100
+        gradient_accumulation_steps: 1
+        train_unet: true
+        train_text_encoder: false
+        gradient_checkpointing: true                     # big VRAM saver
+        noise_scheduler: flowmatch
+        optimizer: adamw8bit                             # 8-bit optimizer = less VRAM
+        lr: 1e-4
+        dtype: bf16
+      model:
+        name_or_path: black-forest-labs/FLUX.1-dev
+        is_flux: true
+        quantize: true                                   # ~8-bit base -> fits small cards
+      sample:
+        sampler: flowmatch
+        sample_every: 250
+        width: 1024
+        height: 1024
+        prompts:
+          - "p3rs0n holding a sign that says gen·lab"
+        guidance_scale: 4
+        sample_steps: 20
+        seed: 42
+        walk_seed: true
+meta:
+  name: flux_lora
+  version: "1.0"

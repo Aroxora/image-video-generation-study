@@ -1,0 +1,55 @@
+# ai-toolkit (Ostris) — SDXL LoRA. Uploaded to the box as ~/lambda_lab/run.yaml.
+# SDXL LoRA fits easily in 24 GB, so the default instance is the A10 ($1.29/hr).
+# SDXL base is under the permissive Stability community license (commercial use OK
+# below the revenue threshold) — read it before shipping a product.
+---
+job: extension
+config:
+  name: sdxl_lora
+  process:
+    - type: sd_trainer
+      training_folder: /home/ubuntu/lambda_lab/output
+      device: cuda:0
+      trigger_word: p3rs0n
+      network:
+        type: lora
+        linear: 16
+        linear_alpha: 16
+      save:
+        dtype: float16
+        save_every: 250
+        max_step_saves_to_keep: 4
+      datasets:
+        - folder_path: /home/ubuntu/lambda_lab/dataset
+          caption_ext: txt
+          caption_dropout_rate: 0.05
+          cache_latents_to_disk: true
+          resolution: [768, 1024]
+      train:
+        batch_size: 2
+        steps: 1500
+        gradient_accumulation_steps: 1
+        train_unet: true
+        train_text_encoder: false
+        gradient_checkpointing: true
+        noise_scheduler: ddpm
+        optimizer: adamw8bit
+        lr: 1e-4
+        dtype: bf16
+      model:
+        name_or_path: stabilityai/stable-diffusion-xl-base-1.0
+        is_xl: true
+      sample:
+        sampler: ddpm
+        sample_every: 250
+        width: 1024
+        height: 1024
+        prompts:
+          - "p3rs0n as an oil painting"
+        guidance_scale: 7
+        sample_steps: 25
+        seed: 42
+        walk_seed: true
+meta:
+  name: sdxl_lora
+  version: "1.0"

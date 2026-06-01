@@ -1,0 +1,39 @@
+# diffusion-pipe — video LoRA config (uploaded as ~/lambda_lab/run.toml).
+# This targets Wan2.1-T2V-1.3B (Apache-2.0, the most economical video base): it
+# trains a LoRA in well under 24 GB and runs the H100 PCIe ($3.29/hr) with room to
+# spare. For the 14B Wan / HunyuanVideo, raise `blocks_to_swap` to fit 80 GB.
+#
+# This is a STARTING POINT — copy the matching file from diffusion-pipe/examples/
+# for your exact model + checkpoint paths, then adjust. See
+# https://github.com/tdrussell/diffusion-pipe
+
+output_dir = '/home/ubuntu/lambda_lab/output'
+dataset = '/home/ubuntu/lambda_lab/dataset/dataset.toml'   # video clips + captions
+
+epochs = 50
+micro_batch_size_per_gpu = 1
+gradient_accumulation_steps = 4
+gradient_clipping = 1.0
+warmup_steps = 50
+
+save_every_n_epochs = 5
+checkpoint_every_n_minutes = 30        # checkpoint often -> resume cheaply
+activation_checkpointing = true        # big VRAM saver
+
+[model]
+type = 'wan'
+ckpt_path = '/home/ubuntu/.cache/huggingface/wan2.1-t2v-1.3b'   # set after download
+dtype = 'bfloat16'
+# transformer_dtype = 'float8'         # uncomment to drop VRAM further
+blocks_to_swap = 0                     # raise (e.g. 20) to fit 14B models on 80 GB
+
+[adapter]
+type = 'lora'
+rank = 32
+dtype = 'bfloat16'
+
+[optimizer]
+type = 'adamw_optimi'
+lr = 2e-5
+betas = [0.9, 0.99]
+weight_decay = 0.01

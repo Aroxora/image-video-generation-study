@@ -111,6 +111,15 @@ export const SECTIONS: SectionMeta[] = [
     family: 'build',
     code: ['pytorch/toy/toy_diffusion_2d.py'],
   },
+  {
+    slug: 'gpu',
+    no: '10',
+    label: 'Rent a GPU',
+    title: 'Rent a GPU: open models for the price of lunch',
+    blurb: 'The same architecture, full-size. Rent an H100 or GH200 by the minute, fine-tune FLUX or Wan with a LoRA, serve it, tear it down — an agentic, resumable, budget-capped pipeline does the whole loop for you.',
+    family: 'build',
+    code: ['lambda_lab/run.py', 'lambda_lab/engine.py', 'lambda_lab/costs.py', 'lambda_lab/steps.py', 'lambda_lab/bootstrap.sh'],
+  },
 ];
 
 /** Sections that appear in the rail / grid (everything except the overview root). */

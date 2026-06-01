@@ -16,5 +16,6 @@ export const routes: Routes = [
   { path: 'autoregressive', loadComponent: () => import('./features/autoregressive/autoregressive').then((m) => m.Autoregressive), title: 'Autoregressive — Interleaved Tokens' },
   { path: 'build', loadComponent: () => import('./features/build/build').then((m) => m.Build), title: 'Build It Yourself in PyTorch' },
   { path: 'playground', loadComponent: () => import('./features/playground/playground').then((m) => m.Playground), title: 'Live Diffusion Playground' },
+  { path: 'gpu', loadComponent: () => import('./features/gpu/gpu').then((m) => m.Gpu), title: 'Rent a GPU — Train & Serve Open Models' },
   { path: '**', redirectTo: '' },
 ];
