@@ -221,10 +221,12 @@ def sync_down(ctx) -> dict:
 # ------------------------------------------------------------------ teardown --
 def teardown(ctx) -> dict:
     """Terminate the instance (the only step that stops the meter). Idempotent:
-    only ever touches the instance this run owns; the filesystem is left intact."""
-    if ctx.params.get("keep_alive"):
-        ctx.log("keep_alive set — NOT terminating (remember you're still paying!)")
-        return {"terminated": False, "kept": True}
+    only ever touches the instance this run owns; the filesystem is left intact.
+
+    NOTE: this always terminates when called. `keep_alive` keeps a serve pipeline
+    up by simply NOT putting a teardown step in its success path — it must never
+    block an EXPLICIT teardown (CLI / autoscaler / failure-path), or a serving box
+    could be left billing forever."""
     iid = ctx.get("instance_id")
     # prefer matching by run-id tag, fall back to recorded id
     inst = ctx.api.find_instance_by_name(ctx.state.run_id)
