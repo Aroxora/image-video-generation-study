@@ -97,6 +97,19 @@ PIPELINES: dict[str, dict] = {
             "download": [f"{REMOTE_KIT}/output"],
         },
     },
+    # ---- SDXL JSON API for the web Studio (stays up; tear down manually) ----
+    "serve-sdxl": {
+        "steps": _serve_steps,
+        "defaults": {
+            "instance_type": "gpu_1x_a10",          # SDXL fits 24 GB — $1.29/hr
+            "stack": "diffusers",
+            "budget_usd": 10.0,
+            "keep_alive": True,
+            "port": 8000,
+            "model": "stabilityai/stable-diffusion-xl-base-1.0",
+            "job_command": "",                       # built in build() from model/port
+        },
+    },
     # ---- interactive ComfyUI server (stays up; tear down manually) ----
     "serve-comfyui": {
         "steps": _serve_steps,
@@ -117,6 +130,12 @@ def build(pipeline: str, overrides: dict) -> tuple[list[Step], dict]:
     spec = PIPELINES[pipeline]
     params = dict(spec["defaults"])
     params.update(overrides or {})
+
+    # serve-sdxl: assemble the remote command from model/port (so --set takes effect)
+    if pipeline == "serve-sdxl":
+        model = params["model"]
+        port = int(params.get("port", 8000))
+        params["job_command"] = f'python {JOBDIR}/serve_api.py --model "{model}" --port {port}'
 
     # batch-infer: assemble the remote command from model/prompt/n if not given
     if pipeline == "batch-infer" and not params.get("job_command"):

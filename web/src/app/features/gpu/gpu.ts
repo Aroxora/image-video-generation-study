@@ -1,6 +1,7 @@
 import {
   Component, ChangeDetectionStrategy, inject, DestroyRef, signal, computed, afterNextRender,
 } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { Chapter } from '../../shared/chapter';
 import { CodeRef } from '../../shared/code-ref';
 import { Math as MathTex } from '../../shared/math';
@@ -28,7 +29,7 @@ interface SimStep { name: string; dur: number; }
 @Component({
   selector: 'app-gpu',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Chapter, CodeRef, MathTex],
+  imports: [Chapter, CodeRef, MathTex, RouterLink],
   template: `
 <app-chapter slug="gpu">
 
@@ -333,6 +334,13 @@ interface SimStep { name: string; dur: number; }
     turns. The budget cap is the hard rail; auto-teardown is the safety net.
   </p>
 
+  <p class="studio-cta-wrap">
+    <a class="studio-cta" routerLink="/studio">▸ Open the live Image Studio</a>
+    <span>— a browser front-end that talks to <em>your</em> SDXL box. Start it with
+    <code>lambda_lab.run start serve-sdxl</code>, open the tunnel it prints, and generate
+    right here. It runs nothing itself — your GPU does the work, with no prompt filter.</span>
+  </p>
+
   <h2>6 · The GH200 question, honestly</h2>
   <div class="callout callout--warn">
     <span class="callout__tag tag">read before you pick the cheap one</span>
@@ -402,6 +410,10 @@ interface SimStep { name: string; dur: number; }
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .btn--primary { background: var(--grad-plasma); color: #0a0a12; border-color: transparent; font-weight: 600; }
     .select { font-family: var(--font-mono); font-size: 0.8rem; background: var(--bg-3); color: var(--ink-0); border: 1px solid var(--line-strong); border-radius: 7px; padding: 0.3em 0.5em; }
+    .studio-cta-wrap { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; padding: 1rem 1.2rem; border: 1px solid rgba(124,92,255,0.4); border-radius: var(--radius-sm); background: var(--accent-soft); }
+    .studio-cta { font-family: var(--font-display); font-weight: 600; color: #cdbcff; text-decoration: none; white-space: nowrap; font-size: 1.02rem; }
+    .studio-cta:hover { color: #fff; }
+    .studio-cta-wrap span { color: var(--ink-2); font-size: 0.9rem; }
 
     /* table */
     .tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); }

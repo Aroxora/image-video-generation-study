@@ -1,7 +1,8 @@
 # ai-toolkit (Ostris) — SDXL LoRA. Uploaded to the box as ~/lambda_lab/run.yaml.
 # SDXL LoRA fits easily in 24 GB, so the default instance is the A10 ($1.29/hr).
-# SDXL base is under the permissive Stability community license (commercial use OK
-# below the revenue threshold) — read it before shipping a product.
+# SDXL 1.0 base is CreativeML OpenRAIL++-M — commercial use of OUTPUTS is permitted
+# with no revenue threshold. (Community bases like Pony/Illustrious v0.1 add their
+# own paid-inference clauses — check the specific checkpoint before shipping.)
 ---
 job: extension
 config:

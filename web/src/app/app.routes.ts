@@ -17,5 +17,6 @@ export const routes: Routes = [
   { path: 'build', loadComponent: () => import('./features/build/build').then((m) => m.Build), title: 'Build It Yourself in PyTorch' },
   { path: 'playground', loadComponent: () => import('./features/playground/playground').then((m) => m.Playground), title: 'Live Diffusion Playground' },
   { path: 'gpu', loadComponent: () => import('./features/gpu/gpu').then((m) => m.Gpu), title: 'Rent a GPU — Train & Serve Open Models' },
+  { path: 'studio', loadComponent: () => import('./features/studio/studio').then((m) => m.Studio), title: 'Image Studio — Self-Hosted SDXL' },
   { path: '**', redirectTo: '' },
 ];
