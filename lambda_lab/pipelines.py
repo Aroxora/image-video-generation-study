@@ -131,11 +131,15 @@ def build(pipeline: str, overrides: dict) -> tuple[list[Step], dict]:
     params = dict(spec["defaults"])
     params.update(overrides or {})
 
+    # bootstrap.sh installs into ~/venv, so direct-python jobs must use that
+    # interpreter (the *.sh job scripts already `source` it themselves).
+    py = "$HOME/venv/bin/python"
+
     # serve-sdxl: assemble the remote command from model/port (so --set takes effect)
     if pipeline == "serve-sdxl":
         model = params["model"]
         port = int(params.get("port", 8000))
-        params["job_command"] = f'python {JOBDIR}/serve_api.py --model "{model}" --port {port}'
+        params["job_command"] = f'{py} {JOBDIR}/serve_api.py --model "{model}" --port {port}'
 
     # batch-infer: assemble the remote command from model/prompt/n if not given
     if pipeline == "batch-infer" and not params.get("job_command"):
@@ -143,7 +147,7 @@ def build(pipeline: str, overrides: dict) -> tuple[list[Step], dict]:
         prompt = params["prompt"].replace('"', '\\"')
         n = int(params.get("n", 16))
         params["job_command"] = (
-            f'python {JOBDIR}/batch_infer.py --model "{model}" '
+            f'{py} {JOBDIR}/batch_infer.py --model "{model}" '
             f'--prompt "{prompt}" --n {n} --out {REMOTE_KIT}/output'
         )
 
